@@ -1,0 +1,14 @@
+# 代理配置示例文件
+# 每行一个代理，支持以下格式：
+# http://proxy_ip:port
+# http://username:password@proxy_ip:port
+# https://proxy_ip:port
+# https://username:password@proxy_ip:port
+
+# 示例代理（请替换为真实代理）
+http://proxy1.example.com:8080
+http://user:pass@proxy2.example.com:3128
+https://proxy3.example.com:8080
+
+# 注释行会被忽略
+# 空行也会被忽略
