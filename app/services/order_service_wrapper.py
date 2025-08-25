@@ -97,7 +97,6 @@ class OrderServiceWrapper:
                 created_at_ts = request.created_at_ts
 
                 if not current_price or not created_at_ts:
-                    logger.info(f'获取商品 {request.nft_token_id} 详情')
                     item_details = await service.get_item_details(request.nft_token_id)
                     sales_info = item_details['salesInfo']
                     current_price = sales_info['priceWei']

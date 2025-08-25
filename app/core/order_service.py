@@ -350,6 +350,8 @@ class OrderService:
             'origin': 'https://msu.io',
             'referer': 'https://msu.io/marketplace',
         }
+
+        logger.info(f'[{token_id}] 获取商品详情')
         
         try:
             response = await self.request_strategy.get(url, headers=headers)
@@ -358,6 +360,8 @@ class OrderService:
                 data = response['data']
                 if isinstance(data, str):
                     data = json.loads(data)
+
+                logger.info(f'[{token_id}] 获取商品详情成功: {data}')
 
                 created_at = data['salesInfo']["createdAt"]
                 created_at_dt = datetime.strptime(created_at, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
@@ -455,8 +459,6 @@ class OrderService:
         try:
             response = await self.request_strategy.post(url, payload, headers=headers, timeout=15)
             
-            print('登录响应:', response['data'])
-            
             # 从响应数据中提取认证信息并设置为 cookies
             try:
                 response_data = response['data']
@@ -480,20 +482,16 @@ class OrderService:
                         }
                         self.request_strategy.set_cookies(auth_cookies)
                     
-                    print('登录成功，已设置认证 cookies:', {
-                        'msu_wat': response_data['wat'][:30] + '...',
-                        'msu_wrt': response_data['wrt'][:30] + '...',
-                        'watExpireAt': response_data.get('watExpireAt'),
-                        'wrtExpireAt': response_data.get('wrtExpireAt')
-                    })
+                    logger.info('登录成功')
+
                 else:
-                    print('登录响应中未找到 wat 或 wrt tokens')
+                    logger.error('登录响应中未找到 wat 或 wrt tokens')
             except Exception as parse_error:
-                print(f'解析登录响应失败: {parse_error}')
+                logger.error(f'解析登录响应失败: {parse_error}')
             
             return response
         except Exception as e:
-            print(f'登录失败: {e}')
+            logger.error(f'登录失败: {e}')
             raise e
 
     async def _single_purchase_task(self, params: Dict[str, Any], delay: int) -> Dict[str, Any]:
@@ -528,7 +526,7 @@ class OrderService:
 
             response = await self.request_strategy.post(url, payload, headers=headers)
             data = response['data']
-            logger.info('{nft_token_id}] 等待 {delay}ms 后下单结果: {data}')
+            logger.info(f'{nft_token_id}] 等待 {delay}ms 后下单结果: {data}')
             message = data.get('message')
 
             if message != blocked_message:
@@ -645,10 +643,10 @@ class OrderService:
         
         try:
             response = await self.request_strategy.post(url, payload, headers=headers)
-            print('下单响应:', response['data'])
+            logger.info('下单响应:', response['data'])
             return response
         except Exception as e:
-            print(f'下单失败: {e}')
+            logger.error(f'下单失败: {e}')
             raise e
     
     async def place_sell_order(self, params: Dict[str, Any], confirm_real_order: bool = False) -> Dict[str, Any]:
@@ -695,10 +693,10 @@ class OrderService:
         
         try:
             response = await self.request_strategy.post(url, payload, headers=headers)
-            print('下单响应:', response['data'])
+            logger.info('下单响应:', response['data'])
             return response
         except Exception as e:
-            print(f'下单失败: {e}')
+            logger.error(f'下单失败: {e}')
             raise e
 
     async def switch_strategy(self, strategy_type: str, config: Dict[str, Any] = None):
@@ -712,7 +710,7 @@ class OrderService:
         if config is None:
             config = {}
             
-        print(f"切换请求策略从 {self.strategy_type} 到 {strategy_type}")
+        logger.info(f"切换请求策略从 {self.strategy_type} 到 {strategy_type}")
         
         # 销毁当前策略
         await self.request_strategy.destroy()
@@ -724,7 +722,7 @@ class OrderService:
         
         # 初始化新策略
         await self.request_strategy.init()
-        print(f"策略切换完成，当前使用: {self.request_strategy.get_name()}")
+        logger.info(f"策略切换完成，当前使用: {self.request_strategy.get_name()}")
     
     def get_strategy_info(self) -> Dict[str, Any]:
         """
@@ -769,15 +767,15 @@ class OrderService:
             self.auth_tokens['wat'] = wat
             self.auth_tokens['wrt'] = wrt
             
-            print('已设置认证 cookies')
+            logger.info('已设置认证 cookies')
         else:
-            print('当前策略不支持设置 cookies')
+            logger.warning('当前策略不支持设置 cookies')
     
     def clear_auth_cookies(self):
         """清除认证 cookies"""
         if hasattr(self.request_strategy, 'clear_cookies'):
             self.request_strategy.clear_cookies()
-            print('已清除认证 cookies')
+            logger.info('已清除认证 cookies')
         
         # 同时清除实例变量
         self.clear_auth_tokens()
@@ -819,7 +817,7 @@ class OrderService:
             'wat_expire_at': None,
             'wrt_expire_at': None
         }
-        print('已清除认证信息')
+        logger.info('已清除认证信息')
     
     def get_proxy_info(self) -> Dict[str, Any]:
         """
@@ -842,7 +840,7 @@ class OrderService:
         if hasattr(self.request_strategy, 'set_proxy_enabled'):
             self.request_strategy.set_proxy_enabled(enabled)
         else:
-            print('当前策略不支持代理配置')
+            logger.warning('当前策略不支持代理配置')
     
     async def destroy(self):
         """清理资源"""
