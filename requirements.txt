@@ -1,0 +1,24 @@
+# Python 订单服务依赖
+
+# 核心依赖
+web3>=7.0.0                    # 以太坊区块链交互库
+curl-cffi>=0.7.0              # HTTP 客户端，支持浏览器指纹伪装
+eth-account>=0.13.0            # 以太坊账户管理和签名
+
+# FastAPI 相关依赖
+fastapi>=0.104.0               # 现代 Web API 框架
+uvicorn[standard]>=0.24.0      # ASGI 服务器
+pydantic>=2.5.0                # 数据验证和序列化
+pydantic-settings>=2.1.0       # Pydantic 设置管理
+python-dotenv>=1.0.0           # 环境变量管理
+
+# 可选依赖（用于其他功能）
+# requests>=2.31.0             # 标准 HTTP 客户端（如果需要）
+# aiohttp>=3.9.0               # 异步 HTTP 客户端（如果需要）
+
+# 开发和测试依赖
+pytest>=8.0.0                 # 测试框架
+pytest-asyncio>=0.23.0        # 异步测试支持
+httpx>=0.25.0                 # 异步 HTTP 客户端（用于测试）
+black>=24.0.0                 # 代码格式化
+flake8>=7.0.0                 # 代码检查

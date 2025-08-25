@@ -117,3 +117,95 @@ async def create_order(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=error_response.model_dump()
         )
+
+
+@router.get(
+    "/sell",
+    response_model=OrderResponse,
+    responses={
+        400: {"model": ErrorResponse, "description": "请求参数错误"},
+        500: {"model": ErrorResponse, "description": "服务器内部错误"},
+    },
+    summary="创建卖单",
+    description="""
+    创建卖单。
+    
+    **参数说明：**
+    - `nft_token_id`: NFT 代币ID（必需）
+    - `token_amount`: 代币数量（wei 单位）
+    - `confirm_real_order`: 安全确认参数，必须为 true
+    
+    **私钥获取：**
+    - 私钥从环境变量 PRIVATE_KEY 中自动获取
+    
+    **安全要求：**
+    - 必须设置 `confirm_real_order=true` 才能下真实订单
+    - 这是为了防止测试过程中的意外下单
+    """
+)
+async def create_sell_order(
+    nft_token_id: str,
+    price_wei: str,
+    confirm_real_order: bool = False,
+    rpc_url: Optional[str] = None,
+    use_proxy: Optional[bool] = None,
+    timeout: Optional[int] = None
+):
+    """创建卖单接口"""
+    
+    try:
+        if not settings.private_key:
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content=ErrorResponse(
+                    message="服务器配置错误：未设置 PRIVATE_KEY 环境变量",
+                    error_code="MISSING_PRIVATE_KEY"
+                ).model_dump()
+            )
+        
+        # 构建请求对象
+        request = OrderRequest(
+            nft_token_id=nft_token_id,
+            order_type=OrderType.SELL,
+            price_wei=price_wei,
+            confirm_real_order=confirm_real_order or (not settings.require_confirmation),
+            rpc_url=rpc_url,
+            use_proxy=use_proxy,
+            timeout=timeout
+        )
+        
+        # 调用订单服务
+        result = await order_service_wrapper.place_order(request, settings.private_key)
+        
+        # 根据结果返回相应的状态码
+        if result.success:
+            return result
+        else:
+            # 根据错误类型返回不同的状态码
+            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            
+            if result.error_code in ["INVALID_PARAMETERS", "SECURITY_CHECK_FAILED"]:
+                status_code = status.HTTP_400_BAD_REQUEST
+            elif result.error_code == "AUTHENTICATION_REQUIRED":
+                status_code = status.HTTP_401_UNAUTHORIZED
+            elif result.error_code == "RATE_LIMITED":
+                status_code = status.HTTP_429_TOO_MANY_REQUESTS
+            elif result.error_code == "REQUEST_BLOCKED":
+                status_code = status.HTTP_403_FORBIDDEN
+            
+            return JSONResponse(
+                status_code=status_code,
+                content=result.model_dump()
+            )
+    
+    except Exception as e:
+        # 未预期的错误
+        error_response = ErrorResponse(
+            message=f"服务器内部错误: {str(e)}",
+            error_code="INTERNAL_SERVER_ERROR"
+        )
+        
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=error_response.model_dump()
+        )

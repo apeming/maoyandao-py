@@ -155,7 +155,7 @@ class OrderService:
         
         return str(wei_amount)
     
-    def create_order(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def create_order(self, params: Dict[str, Any], is_seller: bool = False, expire_days: int = 3) -> Dict[str, Any]:
         """
         创建订单数据（市价单和限价单通用）
         
@@ -165,7 +165,9 @@ class OrderService:
                 - token_amount: 已经是 wei 单位的代币数量（直接使用）
                 - nft_token_id: NFT 代币ID
                 注意：优先使用 token_amount，如果没有则使用 amount
-                
+            is_seller: 是否卖出
+            expire_days: 订单过期天数
+
         Returns:
             订单数据字典
         """
@@ -179,10 +181,10 @@ class OrderService:
         
         nft_token_id = params['nft_token_id']
         
-        timestamp_info = self.get_timestamp(3)
+        timestamp_info = self.get_timestamp(expire_days)
         
         return {
-            'isSeller': False,
+            'isSeller': is_seller,
             'maker': self.wallet_address,
             'listingTime': str(timestamp_info['sec']),
             'expirationTime': str(timestamp_info['after_days_sec']),
@@ -195,7 +197,7 @@ class OrderService:
     
     def create_market_order(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
-        创建市价单订单数据（兼容性方法）
+        创建市价单订单数据
         
         Args:
             params: 订单参数
@@ -207,7 +209,7 @@ class OrderService:
     
     def create_limit_order(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
-        创建限价单订单数据（兼容性方法）
+        创建限价单订单数据
         
         Args:
             params: 订单参数
@@ -216,6 +218,18 @@ class OrderService:
             订单数据字典
         """
         return self.create_order(params)
+    
+    def create_sell_order(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        创建卖出挂单订单数据
+        
+        Args:
+            params: 订单参数
+                
+        Returns:
+            订单数据字典
+        """
+        return self.create_order(params, True, 14)
 
     def sign_order(self, order: Dict[str, Any]) -> str:
         """
@@ -339,7 +353,7 @@ class OrderService:
         
         try:
             response = await self.request_strategy.get(url, headers=headers)
-            
+
             if response['success']:
                 data = response['data']
                 if isinstance(data, str):
@@ -351,11 +365,11 @@ class OrderService:
 
                 return data
             elif response['status'] == 429:
-                raise Exception(f"获取message失败: 请求太频繁")
+                raise Exception(f"获取订单详情失败: 请求太频繁")
             elif response['status'] == 403:
-                raise Exception(f"获取message失败: 请求被封禁")
+                raise Exception(f"获取订单详情失败: 请求被封禁")
             else:
-                raise Exception(f"获取message失败: {response['status']}")
+                raise Exception(f"获取订单详情失败: {response['status']}")
         except Exception as e:
             raise e
 
@@ -481,8 +495,55 @@ class OrderService:
         except Exception as e:
             print(f'登录失败: {e}')
             raise e
-    
-    async def place_market_order(self, params: Dict[str, Any], confirm_real_order: bool = False) -> Dict[str, Any]:
+
+    async def _single_purchase_task(self, params: Dict[str, Any], delay: int) -> Dict[str, Any]:
+        """单个抢购任务"""
+        nft_token_id = params['nft_token_id']
+        url = f"https://msu.io/marketplace/api/marketplace/items/{nft_token_id}/buy"
+        
+        order = self.create_market_order(params)
+        order_sign = self.sign_order(order)
+        
+        payload = {
+            'order': order,
+            'orderSign': order_sign
+        }
+        
+        headers = {
+            'accept': 'application/json, text/plain, */*',
+            'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8,und;q=0.7,sl;q=0.6',
+            'content-type': 'application/json',
+            'origin': 'https://msu.io',
+            'referer': 'https://msu.io/marketplace',
+        }
+
+        blocked_message = 'purchase blocked: the product is not ready for sale yet'
+        
+        try:
+            # 延迟 delay_ms 毫秒
+            if delay > 0:
+                await asyncio.sleep(delay / 1000)
+            
+            logger.info(f'[{nft_token_id}] 等待 {delay}ms 后开始下单...')
+
+            response = await self.request_strategy.post(url, payload, headers=headers)
+            data = response['data']
+            logger.info(data)
+            message = data.get('message')
+            
+            if message != blocked_message:
+                logger.info(f'下单完成: {data}')
+                return response
+            else:
+                raise Exception(f'抢购失败: {message}')
+                
+        except Exception as e:
+            # 失败后等待5秒再退出
+            logger.error(f'[{nft_token_id}] 等待 {delay}ms 后下单失败: {e}')
+            await asyncio.sleep(5)
+            raise e
+
+    async def place_market_order(self, params: Dict[str, Any], confirm_real_order: bool = False, concurrent_tasks: int = 300) -> Dict[str, Any]:
         """
         下市价单
         
@@ -504,53 +565,40 @@ class OrderService:
         # 检查是否已认证
         if not self.is_authenticated():
             raise Exception('未认证：请先调用 login() 方法进行登录')
-        
-        nft_token_id = params['nft_token_id']
-        url = f"https://msu.io/marketplace/api/marketplace/items/{nft_token_id}/buy"
-        
-        order = self.create_market_order(params)
-        order_sign = self.sign_order(order)
-        
-        payload = {
-            'order': order,
-            'orderSign': order_sign
-        }
-        
-        # 设置请求头（认证信息通过 cookies 携带）
-        headers = {
-            'accept': 'application/json, text/plain, */*',
-            'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8,und;q=0.7,sl;q=0.6',
-            'content-type': 'application/json',
-            'origin': 'https://msu.io',
-            'referer': 'https://msu.io/marketplace',
-            # 'x-msu-address': self.wallet_address
-        }
 
+        wait_interval = 30
+        created_at_ms = int(params['created_at_ts'] * 1000)
+
+        logger.info(f"订单已创建 {int(time.time()) - params['created_at_ts']}s")
+
+        while True:
+            if int(time.time() * 1000) - created_at_ms >= int(wait_interval * 1000):
+                break
+            await asyncio.sleep(0.001)  # 1ms延迟
+
+        logger.info('冷却期结束，开始启动抢购协程...')
+
+        # 启动多个协程抢购
+        tasks = []
+        for i in range(concurrent_tasks):
+            task = asyncio.create_task(self._single_purchase_task(params, i * 10))
+            tasks.append(task)
+        
         try:
-            logger.info(f"即将在 {31 - (int(time.time()) - params['created_at_ts'])}s 后下单...")
-
-            logger.info(payload)
-
-            # 预编译条件检查
-            blocked_message = 'purchase blocked: the product is not ready for sale yet'
-            created_at_ms = int(params['created_at_ts'] * 1000)
-            while True:
-                if int(time.time() * 1000) - created_at_ms < int(31 * 1000):
-                    await asyncio.sleep(0.001)  # 1ms延迟
-                    continue
-
-                logger.info('开始下单...')
-
-                response = await self.request_strategy.post(url, payload, headers=headers)
-                data = response['data']
-                logger.info(data)
-                message = data.get('message')
-                if message != blocked_message:
-                    logger.info(f'下单完成: {data}')
-                    return response
-                await asyncio.sleep(0.001)  # 1ms延迟
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            
+            # 取消剩余任务
+            for task in pending:
+                task.cancel()
+            
+            # 返回第一个成功的结果
+            return await list(done)[0]
         except Exception as e:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
             raise e
+
 
     async def place_limit_order(self, params: Dict[str, Any], confirm_real_order: bool = False) -> Dict[str, Any]:
         """
@@ -604,6 +652,56 @@ class OrderService:
             print(f'下单失败: {e}')
             raise e
     
+    async def place_sell_order(self, params: Dict[str, Any], confirm_real_order: bool = False) -> Dict[str, Any]:
+        """
+        卖单
+        
+        Args:
+            params: 订单参数
+                - nft_token_id: NFT 代币ID
+                - token_amount: 已经是 wei 单位的代币数量（直接使用）
+            confirm_real_order: 确认下真实订单的安全检查参数
+            
+        Returns:
+            下单响应数据
+        """
+        # 安全检查：防止测试过程中意外下真实订单
+        if not confirm_real_order:
+            raise Exception('安全检查：您必须设置 confirm_real_order=True 来下真实订单')
+        
+        # 检查是否已认证
+        if not self.is_authenticated():
+            raise Exception('未认证：请先调用 login() 方法进行登录')
+        
+        nft_token_id = params['nft_token_id']
+        url = f"https://msu.io/marketplace/api/marketplace/items/{nft_token_id}/register"
+        
+        order = self.create_sell_order(params)
+        order_sign = self.sign_order(order)
+        
+        payload = {
+            'order': order,
+            'orderSign': order_sign
+        }
+        
+        # 设置请求头（认证信息通过 cookies 携带）
+        headers = {
+            'accept': 'application/json, text/plain, */*',
+            'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8,und;q=0.7,sl;q=0.6',
+            'content-type': 'application/json',
+            'origin': 'https://msu.io',
+            'referer': 'https://msu.io/marketplace',
+            # 'x-msu-address': self.wallet_address
+        }
+        
+        try:
+            response = await self.request_strategy.post(url, payload, headers=headers)
+            print('下单响应:', response['data'])
+            return response
+        except Exception as e:
+            print(f'下单失败: {e}')
+            raise e
+
     async def switch_strategy(self, strategy_type: str, config: Dict[str, Any] = None):
         """
         切换请求策略

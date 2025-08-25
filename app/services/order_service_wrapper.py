@@ -5,12 +5,16 @@
 订单服务包装器 - 为 FastAPI 提供异步接口
 """
 
+import logging
 import hashlib
 from typing import Dict, Any
 
 from app.core.order_service import OrderService
 from app.models.order import OrderRequest, OrderResponse, OrderType
 from app.core.config import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class OrderServiceWrapper:
@@ -29,7 +33,7 @@ class OrderServiceWrapper:
         Args:
             private_key: 私钥
             options: 配置选项
-            
+        
         Returns:
             订单服务实例
         """
@@ -93,6 +97,7 @@ class OrderServiceWrapper:
                 created_at_ts = request.created_at_ts
 
                 if not current_price or not created_at_ts:
+                    logger.info(f'获取商品 {request.nft_token_id} 详情')
                     item_details = await service.get_item_details(request.nft_token_id)
                     sales_info = item_details['salesInfo']
                     current_price = sales_info['priceWei']
@@ -132,6 +137,21 @@ class OrderServiceWrapper:
                     confirm_real_order=request.confirm_real_order
                 )
             
+            elif request.order_type == OrderType.SELL:
+                if not request.token_amount:
+                    return OrderResponse(
+                        success=False,
+                        message="卖单必须提供 token_amount 参数",
+                        error_code="MISSING_TOKEN_AMOUNT"
+                    )
+
+                order_params['token_amount'] = request.price_wei
+                
+                response = await service.place_sell_order(
+                    order_params,
+                    confirm_real_order=request.confirm_real_order
+                )
+
             else:
                 return OrderResponse(
                     success=False,
@@ -177,6 +197,8 @@ class OrderServiceWrapper:
                 error_code = "RATE_LIMITED"
             elif "请求被封禁" in error_message:
                 error_code = "REQUEST_BLOCKED"
+
+            logger.error(f'下单失败: error_code: {error_code}, error_message: {error_message}')
             
             return OrderResponse(
                 success=False,

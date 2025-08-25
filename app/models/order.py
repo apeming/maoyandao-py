@@ -14,6 +14,7 @@ class OrderType(str, Enum):
     """订单类型枚举"""
     MARKET = "market"  # 市价单
     LIMIT = "limit"    # 限价单
+    SELL = "sell"      # 卖单
 
 
 class OrderRequest(BaseModel):
