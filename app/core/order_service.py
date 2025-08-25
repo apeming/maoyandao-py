@@ -528,11 +528,10 @@ class OrderService:
 
             response = await self.request_strategy.post(url, payload, headers=headers)
             data = response['data']
-            logger.info(data)
+            logger.info('{nft_token_id}] 等待 {delay}ms 后下单结果: {data}')
             message = data.get('message')
-            
+
             if message != blocked_message:
-                logger.info(f'下单完成: {data}')
                 return response
             else:
                 raise Exception(f'抢购失败: {message}')
