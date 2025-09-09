@@ -6,6 +6,7 @@
 """
 
 from typing import Optional
+
 from pydantic_settings import BaseSettings
 
 
@@ -29,6 +30,7 @@ class Settings(BaseSettings):
     request_timeout: int = 3
     use_proxy: bool = True
     proxy_file: str = "proxies.txt"
+    concurrent_interval_ms: int = 5
     
     # 安全配置
     require_confirmation: bool = True

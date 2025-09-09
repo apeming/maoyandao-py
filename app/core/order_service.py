@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional, Union
 from web3 import Web3
 from eth_account import Account
 from eth_account.messages import encode_typed_data
+
 from .request_strategies.strategy_factory import RequestStrategyFactory
 
 
@@ -280,16 +281,6 @@ class OrderService:
 
         markets = []
 
-        # filter_example = {
-        #     "name": "Salmon Sushi",
-        #     "categoryNo": 0,
-        #     "price": { "min": 0, "max": 9000 },
-        #     "level": { "min": 0, "max": 250 },
-        #     "starforce": { "min": 0, "max": 25 },
-        #     "potential": { "min": 0, "max": 4 },
-        #     "bonusPotential": { "min": 0, "max": 4 }
-        # }
-
         try:
             response = await self.request_strategy.post(
                 url,
@@ -298,10 +289,10 @@ class OrderService:
                     'filter': filter,
                     'sorting': sorting,
                     'walletAddr': self.wallet_address,
-                    # "paginationParam": {
-                    #     "pageNo": 1,
-                    #     "pageSize": 135
-                    # }
+                    "paginationParam": {
+                        "pageNo": 1,
+                        "pageSize": 135
+                    }
                 }
             )
 
@@ -312,12 +303,14 @@ class OrderService:
                 # pagination_result = data['paginationResult']
 
                 for item in items:
+                    category = item['category']
                     sales_info = item['salesInfo']
                     created_at = sales_info['createdAt']
                     created_at_dt = datetime.strptime(created_at, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
                     created_at_ts = int(created_at_dt.timestamp())
                     markets.append({
                         'id': item['data']['itemId'],
+                        'category_no': category['categoryNo'],
                         'name': item['name'],
                         'token_id': sales_info['tokenId'],
                         'price_wei': sales_info['priceWei'],
@@ -464,7 +457,7 @@ class OrderService:
                 response_data = response['data']
                 if isinstance(response_data, str):
                     response_data = json.loads(response_data)
-                
+
                 if response_data.get('wat') and response_data.get('wrt'):
                     # 存储认证 tokens 到实例变量中
                     self.auth_tokens = {
@@ -522,8 +515,6 @@ class OrderService:
             if delay > 0:
                 await asyncio.sleep(delay / 1000)
             
-            logger.info(f'[{nft_token_id}] 等待 {delay}ms 后开始下单...')
-
             response = await self.request_strategy.post(url, payload, headers=headers)
             data = response['data']
             logger.info(f'{nft_token_id}] 等待 {delay}ms 后下单结果: {data}')
@@ -532,7 +523,7 @@ class OrderService:
             if message != blocked_message:
                 return response
             else:
-                raise Exception(f'抢购失败: {message}')
+                raise Exception(f'{nft_token_id}] 等待 {delay}ms 后抢购失败: {message}')
                 
         except Exception as e:
             # 失败后等待5秒再退出
@@ -563,7 +554,7 @@ class OrderService:
         if not self.is_authenticated():
             raise Exception('未认证：请先调用 login() 方法进行登录')
 
-        wait_interval = 30
+        wait_interval = 28
         created_at_ms = int(params['created_at_ts'] * 1000)
 
         logger.info(f"订单已创建 {int(time.time()) - params['created_at_ts']}s")
@@ -578,7 +569,7 @@ class OrderService:
         # 启动多个协程抢购
         tasks = []
         for i in range(concurrent_tasks):
-            task = asyncio.create_task(self._single_purchase_task(params, i * 10))
+            task = asyncio.create_task(self._single_purchase_task(params, i * 3))
             tasks.append(task)
         
         try:

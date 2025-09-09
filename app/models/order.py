@@ -5,9 +5,10 @@
 订单相关数据模型
 """
 
-from typing import Optional, Union
-from pydantic import BaseModel, Field, model_validator
 from enum import Enum
+from typing import Optional, Union
+
+from pydantic import BaseModel, Field, model_validator
 
 
 class OrderType(str, Enum):

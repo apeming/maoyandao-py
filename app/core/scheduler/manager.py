@@ -1,9 +1,11 @@
 import logging
 from typing import Optional, Dict, Any, Callable
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
+
 from .events import SchedulerEventListener
 
 

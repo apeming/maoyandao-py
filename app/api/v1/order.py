@@ -6,6 +6,7 @@
 """
 
 from typing import Optional, Union
+
 from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
 

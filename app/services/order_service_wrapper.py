@@ -66,6 +66,14 @@ class OrderServiceWrapper:
         except:
             pass
 
+    async def get_markets(self, filter, private_key):
+        try:
+            service = await self._get_or_create_service(private_key)
+            markets = service.get_markets(filter)
+            return markets
+        except:
+            return []
+
     async def place_order(self, request: OrderRequest, private_key: str) -> OrderResponse:
         """
         下单接口
