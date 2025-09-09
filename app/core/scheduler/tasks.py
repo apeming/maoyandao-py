@@ -25,7 +25,7 @@ class TaskRegistry:
     @staticmethod
     async def _fetch_market(filter):
         try:
-            markets = await order_service_wrapper.get_markets(filter)
+            markets = await order_service_wrapper.get_markets(filter, settings.private_key)
             other_markets = [
                 market for market in markets
                 if filter['categoryNo'] != 0
@@ -59,7 +59,7 @@ class TaskRegistry:
                 #     private_key=settings.private_key
                 # )
         except Exception as e:
-            pass
+            logger.error(f'❌ 获取新市场失败: {e}')
 
     @staticmethod
     async def get_new_markets():
