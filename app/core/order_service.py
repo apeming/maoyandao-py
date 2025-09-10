@@ -509,27 +509,28 @@ class OrderService:
         }
 
         blocked_message = 'purchase blocked: the product is not ready for sale yet'
+
+        # 延迟 delay_ms 毫秒
+        if delay > 0:
+            await asyncio.sleep(delay / 1000)
         
         try:
-            # 延迟 delay_ms 毫秒
-            if delay > 0:
-                await asyncio.sleep(delay / 1000)
-            
             response = await self.request_strategy.post(url, payload, headers=headers)
             data = response['data']
-            logger.info(f'{nft_token_id}] 等待 {delay}ms 后下单结果: {data}')
-            message = data.get('message')
 
+            logger.info(f'{nft_token_id}] 等待 {delay}ms 后下单结果: {data}')
+
+            message = data.get('message')
             if message != blocked_message:
+                logger.info(f'[{nft_token_id}] 等待 {delay}ms 后下单完成')
                 return response
             else:
-                raise Exception(f'{nft_token_id}] 等待 {delay}ms 后抢购失败: {message}')
-                
+                logger.warning(f'[{nft_token_id}] 等待 {delay}ms 后仍未过冷却期')
         except Exception as e:
-            # 失败后等待5秒再退出
             logger.error(f'[{nft_token_id}] 等待 {delay}ms 后下单失败: {e}')
-            await asyncio.sleep(5)
-            raise e
+
+        # 未成功就等待5秒再退出
+        await asyncio.sleep(5)
 
     async def place_market_order(self, params: Dict[str, Any], confirm_real_order: bool = False, concurrent_tasks: int = 300) -> Dict[str, Any]:
         """
@@ -542,7 +543,7 @@ class OrderService:
                 - token_amount: 已经是 wei 单位的代币数量（直接使用）
                 注意：优先使用 token_amount，如果没有则使用 amount
             confirm_real_order: 确认下真实订单的安全检查参数
-            
+
         Returns:
             下单响应数据
         """
@@ -564,14 +565,14 @@ class OrderService:
                 break
             await asyncio.sleep(0.001)  # 1ms延迟
 
-        logger.info('冷却期结束，开始启动抢购协程...')
-
         # 启动多个协程抢购
         tasks = []
         for i in range(concurrent_tasks):
             task = asyncio.create_task(self._single_purchase_task(params, i * 3))
             tasks.append(task)
-        
+
+        logger.info(f"[{params['nft_token_id']}] 冷却期结束，启动 {len(tasks)} 个抢购协程")
+
         try:
             done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             
@@ -586,7 +587,6 @@ class OrderService:
                 if not task.done():
                     task.cancel()
             raise e
-
 
     async def place_limit_order(self, params: Dict[str, Any], confirm_real_order: bool = False) -> Dict[str, Any]:
         """
