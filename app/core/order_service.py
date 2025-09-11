@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional, Union
 
 from web3 import Web3
 from eth_account import Account
-from eth_account.messages import encode_typed_data
+from eth_account.messages import encode_typed_data, encode_defunct
 
 from .request_strategies.strategy_factory import RequestStrategyFactory
 
@@ -377,7 +377,7 @@ class OrderService:
         Returns:
             登录消息字符串
         """
-        url = 'https://msu.io/swapnwarp/api/web/message'
+        url = 'https://msu.io/api/web/message'
         payload = {'address': self.wallet_address}
         
         headers = {
@@ -385,12 +385,11 @@ class OrderService:
             'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8,und;q=0.7,sl;q=0.6',
             'content-type': 'application/json',
             'origin': 'https://msu.io',
-            'referer': 'https://msu.io/swapnwarp',
+            'referer': 'https://msu.io/',
         }
-        
+
         try:
             response = await self.request_strategy.post(url, payload, headers=headers)
-            
             if response['success']:
                 data = response['data']
                 if isinstance(data, str):
@@ -414,9 +413,7 @@ class OrderService:
             
         Returns:
             签名字符串
-        """
-        from eth_account.messages import encode_defunct
-        
+        """        
         # 将文本消息编码为可签名的消息格式
         encoded_message = encode_defunct(text=message)
         signature = self.account.sign_message(encoded_message)
@@ -433,7 +430,7 @@ class OrderService:
 
         signature = self.sign_login_message(login_message)
         
-        url = 'https://msu.io/swapnwarp/api/web/signin-wallet'
+        url = 'https://msu.io/api/web/signin-wallet'
         payload = {
             'address': self.wallet_address,
             'signature': signature,
@@ -445,7 +442,7 @@ class OrderService:
             'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8,und;q=0.7,sl;q=0.6',
             'content-type': 'application/json',
             'origin': 'https://msu.io',
-            'referer': 'https://msu.io/swapnwarp',
+            'referer': 'https://msu.io/',
             'x-msu-address': payload['address']
         }
         
@@ -571,7 +568,8 @@ class OrderService:
             task = asyncio.create_task(self._single_purchase_task(params, i * 3))
             tasks.append(task)
 
-        logger.info(f"[{params['nft_token_id']}] 冷却期结束，启动 {len(tasks)} 个抢购协程")
+        nft_token_id = params['nft_token_id']
+        logger.info(f'[{nft_token_id}] 冷却期结束，启动 {len(tasks)} 个抢购协程')
 
         try:
             done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
@@ -583,6 +581,7 @@ class OrderService:
             # 返回第一个成功的结果
             return await list(done)[0]
         except Exception as e:
+            logger.error(f'[{nft_token_id}] 下单失败: {e}')
             for task in tasks:
                 if not task.done():
                     task.cancel()

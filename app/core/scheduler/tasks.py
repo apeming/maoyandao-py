@@ -34,11 +34,14 @@ class TaskRegistry:
                 and market['category_no'] != filter_category_no
             ]
 
-            if (len(other_markets) != 0 or len(markets) > 50):
-                logger.warning(f'新市场{filter_category_no}获取错误')
+            new_markets_len = len(markets)
+            if (len(other_markets) != 0 or new_markets_len > 50):
+                logger.warning(f'新市场{filter_category_no}获取错误 --- 获取总市场数: {new_markets_len}')
                 return
 
-            logger.info(f"发现{len(markets)}个{filter_category_no}新市场")
+            if new_markets_len:
+                logger.info(f"发现{new_markets_len}个{filter_category_no}新市场")
+
             for market in markets:
                 nft_token_id = market['token_id']
                 price_wei = market['price_wei']
@@ -62,7 +65,7 @@ class TaskRegistry:
                 if result.success:
                     logger.info(f'新市场 {nft_token_id} 抢购完成')
                 else:
-                    logger.error(f'新市场 {nft_token_id} 抢购失败')
+                    logger.error(f'新市场 {nft_token_id} 抢购失败. {result.message}')
 
                 # 如果有多个商品，当前仅抢购第一个
                 break

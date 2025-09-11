@@ -7,7 +7,7 @@
 
 import logging
 import hashlib
-from typing import Dict, Any
+from typing import Dict
 
 from app.core.order_service import OrderService
 from app.models.order import OrderRequest, OrderResponse, OrderType
@@ -52,7 +52,11 @@ class OrderServiceWrapper:
             # 创建新的服务实例
             service = OrderService(private_key, default_options)
             await service.init()
-            await service.login()
+
+            try:
+                await service.login()
+            except Exception as e:
+                logger.error(f'❌ 初始化登录失败: {e}')
             
             # 缓存服务实例
             self._service_cache[cache_key] = service
