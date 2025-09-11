@@ -23,11 +23,11 @@ class TaskRegistry:
             logger.error(f"❌ 定时登录失败: {e}")
 
     @staticmethod
-    async def _fetch_market(filter):
+    async def _fetch_market(filter, sorting='ExploreSorting_RECENTLY_LISTED'):
         filter_category_no = filter['categoryNo']
 
         try:
-            markets = await order_service_wrapper.get_markets(filter, settings.private_key)
+            markets = await order_service_wrapper.get_markets(settings.private_key, filter, sorting)
             other_markets = [
                 market for market in markets
                 if filter_category_no != 0
@@ -76,27 +76,47 @@ class TaskRegistry:
     async def get_new_markets():
         try:
             logger.info("开始监听新市场...")
-            filters = [
+            conditions = [
                 {
-                    "categoryNo": 1000401001,
-                    "petSkills": [5190016],
-                    "price": {"min":0,"max":20000000}
+                    "filter": {
+                        "categoryNo": 1000401001,
+                        "petSkills": [5190016],
+                        "price": {"min":0,"max":20000000}
+                    },
+                    "sorting": "ExploreSorting_RECENTLY_LISTED",
                 },
                 {
-                    "categoryNo": 1000401001,
-                    "petSkills": [5190010],
-                    "price": {"min": 0,"max": 1000000}
+                    "filter": {
+                        "categoryNo": 1000401001,
+                        "petSkills": [5190010],
+                        "price": {"min": 0,"max": 1000000}
+                    },
+                    "sorting": "ExploreSorting_RECENTLY_LISTED",
                 },
                 {
-                    "categoryNo": 0,
-                    "price": {"min": 0, "max": 3000},
-                    "level": {"min": 0, "max": 250},
-                    "starforce": {"min": 0, "max": 25},
-                    "potential": {"min": 0, "max": 4},
-                    "bonusPotential": {"min": 0, "max": 4}
+                    "filter": {
+                        "categoryNo": 0,
+                        "price": {"min": 0, "max": 3000},
+                        "level": {"min": 0, "max": 250},
+                        "starforce": {"min": 0, "max": 25},
+                        "potential": {"min": 0, "max": 4},
+                        "bonusPotential": {"min": 0, "max": 4}
+                    },
+                    "sorting": "ExploreSorting_RECENTLY_LISTED",
+                },
+                {
+                    "filter": {
+                        "categoryNo": 0,
+                        "price": {"min": 0, "max": 100000},
+                        "level": {"min": 1, "max": 250},
+                        "starforce": {"min": 0, "max": 25},
+                        "potential": {"min": 0, "max": 4},
+                        "bonusPotential": {"min": 0, "max": 4}
+                    },
+                    "sorting": "ExploreSorting_LOWEST_PRICE",
                 },
             ]
-            await asyncio.gather(*(TaskRegistry._fetch_market(f) for f in filters))
+            await asyncio.gather(*(TaskRegistry._fetch_market(condition['filter'], condition['sorting']) for condition in conditions))
         except:
             logger.error("新市场发现失败...")
 

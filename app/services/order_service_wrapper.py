@@ -70,10 +70,10 @@ class OrderServiceWrapper:
         except:
             pass
 
-    async def get_markets(self, filter, private_key):
+    async def get_markets(self, private_key, filter, sorting='ExploreSorting_RECENTLY_LISTED'):
         try:
             service = await self._get_or_create_service(private_key)
-            markets = await service.get_markets(filter)
+            markets = await service.get_markets(filter, sorting)
             return markets
         except:
             return []
