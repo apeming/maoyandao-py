@@ -57,15 +57,12 @@ class TaskRegistry:
                     timeout=settings.request_timeout,
                 )
 
-                result = await order_service_wrapper.place_order(
-                    request=request,
-                    private_key=settings.private_key
+                asyncio.create_task(
+                    order_service_wrapper.place_order(
+                        request=request,
+                        private_key=settings.private_key,
+                    )
                 )
-
-                if result.success:
-                    logger.info(f'新市场 {nft_token_id} 抢购完成')
-                else:
-                    logger.error(f'新市场 {nft_token_id} 抢购失败. {result.message}')
 
                 # 如果有多个商品，当前仅抢购第一个
                 break

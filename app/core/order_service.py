@@ -526,8 +526,8 @@ class OrderService:
         except Exception as e:
             logger.error(f'[{nft_token_id}] 等待 {delay}ms 后下单失败: {e}')
 
-        # 未成功就等待5秒再退出
-        await asyncio.sleep(5)
+        # 未成功就等待10秒再退出
+        await asyncio.sleep(10)
 
     async def place_market_order(self, params: Dict[str, Any], confirm_real_order: bool = False, concurrent_tasks: int = 300) -> Dict[str, Any]:
         """
@@ -573,7 +573,6 @@ class OrderService:
 
         try:
             done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-            
             # 取消剩余任务
             for task in pending:
                 task.cancel()
